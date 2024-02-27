@@ -25,8 +25,10 @@ class _MainAppState extends State<MainApp> {
   late final Directory directory;
   TorrentTask? task;
 
+  File? downloadedFile;
+
   Future<Uint8List> loadTorrentFromAsset() async {
-    ByteData byteData = await rootBundle.load('assets/some.torrent');
+    ByteData byteData = await rootBundle.load('assets/akula.torrent');
 
     Uint8List bytes = byteData.buffer.asUint8List();
     debugPrint('💡loadTorrentFromAsset :length: ${bytes.length}');
@@ -37,20 +39,35 @@ class _MainAppState extends State<MainApp> {
   Future<void> startDownloading(Uint8List torrent) async {
     if (task == null) {
       try {
-        debugPrint('💡:1: START: ${torrent.length}');
         directory = await getTemporaryDirectory();
 
-        var model = await Torrent.parse(torrent);
+        final model = await Torrent.parse(torrent);
+        debugPrint('💡Torrent name ${model.name} ');
+        debugPrint('💡Torrent announces ${model.announces} ');
+        debugPrint('💡Torrent filePath ${model.filePath} ');
+        debugPrint('💡Torrent info ${model.info} ');
+        debugPrint('💡Torrent urlList ${model.urlList} ');
+        debugPrint('💡Torrent files.first.path ${model.files.first.path} ');
+
         task = TorrentTask.newTask(model, directory.path);
+        debugPrint('💡Torrent task?.metaInfo.files ${task?.metaInfo.files} ');
+
         task?.start();
-        task?.onTaskComplete(() {
-          debugPrint('💡TaskComplete ');
-        });
-        task?.onFileComplete((String filePath) {
-          debugPrint('💡File downloaded to  $filePath');
+        final ev = task?.createListener();
+        ev?.listen((event) {
+          debugPrint('💡Got event :: $event');
         });
       } catch (e) {
         debugPrint('💡startDownloading :ERROR: $e');
+      }
+    }
+  }
+
+  Future<void> checkFile() async {
+    if (task != null) {
+      if (task!.metaInfo.files.isNotEmpty) {
+        downloadedFile =
+            File('${directory.path}/${task!.metaInfo.files.first.name}');
       }
     }
   }
@@ -88,20 +105,32 @@ class _MainAppState extends State<MainApp> {
                 Text('💡STATUS:: ${task?.progress}'),
                 Text('💡connectedPeersNumber:: ${task?.connectedPeersNumber}'),
               ],
-              Gap(15),
+              const Gap(15),
               ElevatedButton(
                   onPressed: () {
                     startDownloading(torrent);
                   },
                   child: const Text('Start download')),
-              Gap(5),
+              const Gap(15),
               ElevatedButton(
                   onPressed: () {
-                    debugPrint('💡STATUS:: ${task?.progress}');
-                    debugPrint(
-                        '💡connectedPeersNumber:: ${task?.connectedPeersNumber}');
+                    checkFile();
                   },
-                  child: const Text('Status')),
+                  child: const Text('check file')),
+              if (downloadedFile != null) ...[
+                Text('Downloaded file :path: ${downloadedFile?.path}'),
+                FutureBuilder(
+                    future: downloadedFile?.length(),
+                    builder: (BuildContext context, AsyncSnapshot snapshot) {
+                      if (snapshot.hasData) {
+                        return Text('Downloaded file :size: ${snapshot.data}');
+                      } else if (snapshot.hasError) {
+                        return const Icon(Icons.error_outline);
+                      } else {
+                        return const CircularProgressIndicator();
+                      }
+                    })
+              ],
             ],
           ),
         ),
