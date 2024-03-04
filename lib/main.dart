@@ -21,35 +21,32 @@ class MainApp extends StatefulHookWidget {
 }
 
 class _MainAppState extends State<MainApp> {
-  late final Uint8List torrent;
+  late final Torrent torrent;
   late final Directory directory;
   TorrentTask? task;
 
   File? downloadedFile;
 
-  Future<Uint8List> loadTorrentFromAsset() async {
+  Future<void> loadTorrentFromAsset() async {
+    directory = await getTemporaryDirectory();
+
     ByteData byteData = await rootBundle.load('assets/akula.torrent');
 
     Uint8List bytes = byteData.buffer.asUint8List();
-    debugPrint('💡loadTorrentFromAsset :length: ${bytes.length}');
-    torrent = bytes;
-    return bytes;
+    torrent = await Torrent.parse(bytes);
+    debugPrint('💡Torrent name ${torrent.name} ');
+    debugPrint('💡Torrent announces ${torrent.announces} ');
+    debugPrint('💡Torrent filePath ${torrent.filePath} ');
+    debugPrint('💡Torrent info ${torrent.info} ');
+    debugPrint('💡Torrent urlList ${torrent.urlList} ');
+    debugPrint('💡Torrent files.first.path ${torrent.files.first.path} ');
   }
 
-  Future<void> startDownloading(Uint8List torrent) async {
+  Future<void> startDownloading() async {
     if (task == null) {
       try {
-        directory = await getTemporaryDirectory();
-
-        final model = await Torrent.parse(torrent);
-        debugPrint('💡Torrent name ${model.name} ');
-        debugPrint('💡Torrent announces ${model.announces} ');
-        debugPrint('💡Torrent filePath ${model.filePath} ');
-        debugPrint('💡Torrent info ${model.info} ');
-        debugPrint('💡Torrent urlList ${model.urlList} ');
-        debugPrint('💡Torrent files.first.path ${model.files.first.path} ');
-
-        task = TorrentTask.newTask(model, directory.path);
+        debugPrint('💡_MainAppState.startDownloading :torrent: $torrent');
+        task = TorrentTask.newTask(torrent, directory.path);
         debugPrint('💡Torrent task?.metaInfo.files ${task?.metaInfo.files} ');
 
         task?.start();
@@ -101,14 +98,28 @@ class _MainAppState extends State<MainApp> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              if (task != null) ...[
-                Text('💡STATUS:: ${task?.progress}'),
-                Text('💡connectedPeersNumber:: ${task?.connectedPeersNumber}'),
-              ],
+              if (task != null)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Total: ${task?.metaInfo.length}'),
+                      Text('Downloaded: ${task?.downloaded}'),
+                      Text('Progress:: ${task?.progress.toStringAsFixed(2)}'),
+                      Text(
+                          'connectedPeersNumber:: ${task?.connectedPeersNumber}'),
+                      Text(
+                          'averageDownloadSpeed:: ${task?.currentDownloadSpeed.toStringAsFixed(2)}'),
+                      Text(
+                          'averageUploadSpeed:: ${task?.uploadSpeed.toStringAsFixed(2)}'),
+                    ],
+                  ),
+                ),
               const Gap(15),
               ElevatedButton(
                   onPressed: () {
-                    startDownloading(torrent);
+                    startDownloading();
                   },
                   child: const Text('Start download')),
               const Gap(15),
@@ -129,7 +140,17 @@ class _MainAppState extends State<MainApp> {
                       } else {
                         return const CircularProgressIndicator();
                       }
-                    })
+                    }),
+                ElevatedButton(
+                    onPressed: () {
+                      task?.stop();
+                    },
+                    child: const Text('Task Stop')),
+                ElevatedButton(
+                    onPressed: () {
+                      task?.start();
+                    },
+                    child: const Text('Task Start')),
               ],
             ],
           ),
